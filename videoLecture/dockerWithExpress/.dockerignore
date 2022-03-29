@@ -1,5 +1,6 @@
 .git
-.dockerignore
+.dockerignorew
 node_modules
 package-lock.json
 DockerFile
+docker-compose*
