@@ -1,5 +1,9 @@
 <template>
-  <div class="video-container paused" data-volume-level="high">
+  <div
+    class="video-container"
+    v-bind:class="[{ captions: isHidden }, { paused: !isPlaying }]"
+    data-volume-level="high"
+  >
     <img class="thumbnail-img" />
     <div class="video-controls-container">
       <div class="timeline-container">
@@ -9,7 +13,7 @@
         </div>
       </div>
       <div class="controls">
-        <button class="play-pause-btn">
+        <button class="play-pause-btn" @click="handleVideoPlay">
           <svg class="play-icon" viewBox="0 0 24 24">
             <path fill="currentColor" d="M8,5.14V19.14L19,12.14L8,5.14Z" />
           </svg>
@@ -52,7 +56,7 @@
           /
           <div class="total-time"></div>
         </div>
-        <button class="captions-btn">
+        <button class="captions-btn" @click="handleCaptionChange">
           <svg viewBox="0 0 24 24">
             <path
               fill="currentColor"
@@ -65,7 +69,11 @@
             {{ speed }}
           </button>
         </div>
-        <button class="mini-player-btn">
+        <button
+          id="mini"
+          class="mini-player-btn"
+          @click="handleVideoScreenChange"
+        >
           <svg viewBox="0 0 24 24">
             <path
               fill="currentColor"
@@ -73,7 +81,11 @@
             />
           </svg>
         </button>
-        <button class="theater-btn">
+        <button
+          id="theater"
+          class="theater-btn"
+          @click="handleVideoScreenChange"
+        >
           <svg class="tall" viewBox="0 0 24 24">
             <path
               fill="currentColor"
@@ -87,7 +99,7 @@
             />
           </svg>
         </button>
-        <button class="full-screen-btn">
+        <button class="full-screen-btn" @click="handleVideoScreenChange">
           <svg class="open" viewBox="0 0 24 24">
             <path
               fill="currentColor"
@@ -103,8 +115,8 @@
         </button>
       </div>
     </div>
-    <video ref="video" src="assets/Video.mp4">
-      <track kind="captions" srclang="en" src="assets/subtitles.vtt" />
+    <video src="@/assets/Video.mp4" ref="video" @click="handleVideoPlay">
+      <track kind="captions" srclang="en" src="@/assets/subtitles.vtt" />
     </video>
   </div>
 </template>
@@ -113,15 +125,27 @@
 
 export default {
   name: 'NuxtPlayer',
+
   data() {
     return {
       speed: '1x',
+      video: null,
+      captions: null,
+      isHidden: false,
+      isPlaying: false,
+      screenMode: 'normal', // 'normal' , 'mini' , 'full'
     }
   },
 
-  // data: {
-  //   speed: 'hello',
-  // },
+  mounted() {
+    //  vue data
+    this.video = this.$refs.video
+    this.captions = this.video.textTracks[0]
+
+    // data handle
+    this.captions.mode = 'hidden'
+  },
+
   methods: {
     handleSpeedChange() {
       let newPlaybackRate = this.$refs.video.playbackRate + 0.25
@@ -131,7 +155,34 @@ export default {
     },
     handleVolumeChange() {},
 
-    handleCaptionChange() {},
+    handleCaptionChange() {
+      this.isHidden = this.video.textTracks[0].mode === 'hidden'
+      this.video.textTracks[0].mode = this.isHidden ? 'showing' : 'hidden'
+    },
+
+    handleVideoPlay() {
+      this.isPlaying = !this.isPlaying
+      this.isPlaying ? this.video.play() : this.video.pause()
+    },
+
+    handleVideoScreenChange(event) {
+      const current = event.currentTarget.id
+
+      if (current === 'mini') {
+        // eslint-disable-next-line no-unused-expressions
+        if (this.screenMode === 'normal') {
+          this.screenMode = 'mini'
+        } else {
+          this.screenMode = 'normal'
+        }
+
+        if (this.screenMode === 'mini') {
+          this.video.requestPictureInPicture()
+        } else {
+          document.exitPictureInPicture()
+        }
+      }
+    },
   },
 }
 </script>

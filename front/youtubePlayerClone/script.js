@@ -108,16 +108,16 @@ function handleTimelineUpdate(e) {
 // }
 
 // Captions
-const captions = video.textTracks[0];
-captions.mode = 'hidden';
+// const captions = video.textTracks[0];
+// captions.mode = 'hidden';
 
-captionsBtn.addEventListener('click', toggleCaptions);
+// captionsBtn.addEventListener('click', toggleCaptions);
 
-function toggleCaptions() {
-  const isHidden = captions.mode === 'hidden';
-  captions.mode = isHidden ? 'showing' : 'hidden';
-  videoContainer.classList.toggle('captions', isHidden);
-}
+// function toggleCaptions() {
+//   const isHidden = captions.mode === 'hidden';
+//   captions.mode = isHidden ? 'showing' : 'hidden';
+//   videoContainer.classList.toggle('captions', isHidden);
+// }
 
 // Duration
 video.addEventListener('loadeddata', () => {
@@ -213,18 +213,18 @@ video.addEventListener('leavepictureinpicture', () => {
   videoContainer.classList.remove('mini-player');
 });
 
-// Play/Pause
-playPauseBtn.addEventListener('click', togglePlay);
-video.addEventListener('click', togglePlay);
+// // Play/Pause
+// playPauseBtn.addEventListener('click', togglePlay);
+// video.addEventListener('click', togglePlay);
 
-function togglePlay() {
-  video.paused ? video.play() : video.pause();
-}
+// function togglePlay() {
+//   video.paused ? video.play() : video.pause();
+// }
 
-video.addEventListener('play', () => {
-  videoContainer.classList.remove('paused');
-});
+// video.addEventListener('play', () => {
+//   videoContainer.classList.remove('paused');
+// });
 
-video.addEventListener('pause', () => {
-  videoContainer.classList.add('paused');
-});
+// video.addEventListener('pause', () => {
+//   videoContainer.classList.add('paused');
+// });
