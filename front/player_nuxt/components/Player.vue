@@ -1,7 +1,11 @@
 <template>
   <div
     class="video-container"
-    v-bind:class="[{ captions: isHidden }, { paused: !isPlaying }]"
+    v-bind:class="[
+      { captions: isHidden },
+      { paused: !isPlaying },
+      { theater: screenMode === 'theater' },
+    ]"
     data-volume-level="high"
   >
     <img class="thumbnail-img" />
@@ -22,20 +26,32 @@
           </svg>
         </button>
         <div class="volume-container">
-          <button class="mute-btn">
-            <svg class="volume-high-icon" viewBox="0 0 24 24">
+          <button class="mute-btn" @click="handleVolumeMute">
+            <svg
+              v-bind:class="{ show: volumeLevel === 'high' }"
+              class="volume-high-icon"
+              viewBox="0 0 24 24"
+            >
               <path
                 fill="currentColor"
                 d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"
               />
             </svg>
-            <svg class="volume-low-icon" viewBox="0 0 24 24">
+            <svg
+              v-bind:class="{ show: volumeLevel === 'low' }"
+              class="volume-low-icon"
+              viewBox="0 0 24 24"
+            >
               <path
                 fill="currentColor"
                 d="M5,9V15H9L14,20V4L9,9M18.5,12C18.5,10.23 17.5,8.71 16,7.97V16C17.5,15.29 18.5,13.76 18.5,12Z"
               />
             </svg>
-            <svg class="volume-muted-icon" viewBox="0 0 24 24">
+            <svg
+              v-bind:class="{ show: volumeLevel === 'muted' }"
+              class="volume-muted-icon"
+              viewBox="0 0 24 24"
+            >
               <path
                 fill="currentColor"
                 d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"
@@ -43,12 +59,14 @@
             </svg>
           </button>
           <input
+            ref="volume"
             class="volume-slider"
             type="range"
             min="0"
             max="1"
             step="any"
             value="1"
+            @input="onChangeVolume"
           />
         </div>
         <div class="duration-container">
@@ -99,7 +117,11 @@
             />
           </svg>
         </button>
-        <button class="full-screen-btn" @click="handleVideoScreenChange">
+        <button
+          id="full"
+          class="full-screen-btn"
+          @click="handleVideoScreenChange"
+        >
           <svg class="open" viewBox="0 0 24 24">
             <path
               fill="currentColor"
@@ -130,15 +152,18 @@ export default {
     return {
       speed: '1x',
       video: null,
+      volume: null,
       captions: null,
       isHidden: false,
       isPlaying: false,
-      screenMode: 'normal', // 'normal' , 'mini' , 'full'
+      volumeLevel: 'high', // high , muted, low
+      screenMode: 'normal', // 'normal' , 'mini' , 'theater', 'full'
     }
   },
 
   mounted() {
     //  vue data
+    this.volume = this.$refs.volume
     this.video = this.$refs.video
     this.captions = this.video.textTracks[0]
 
@@ -152,6 +177,48 @@ export default {
       if (newPlaybackRate > 2) newPlaybackRate = 0.25
       this.$refs.video.playbackRate = newPlaybackRate
       this.speed = `${newPlaybackRate}x`
+    },
+    handleVolumeMute() {
+      if (
+        this.video.volume === 0 &&
+        this.volumeLevel === 'muted' &&
+        !this.video.muted
+      ) {
+        this.video.volume = 1
+        this.volume.value = 1
+        this.volumeLevel = 'high'
+        return
+      }
+      this.video.muted = !this.video.muted
+
+      this.volume.value = this.video.muted ? 0 : this.video.volume
+
+      if (this.video.muted) {
+        this.volumeLevel = 'muted'
+        return
+      }
+      if (this.video.dataset.volumeLevel === undefined) {
+        this.volumeLevel = 'high'
+      } else if (this.video.dataset.volumeLevel === 'muted') {
+        this.volumeLevel = 'high'
+      } else {
+        this.volumeLevel = this.video.dataset.volumeLevel
+      }
+    },
+    onChangeVolume(e) {
+      e.preventDefault()
+
+      this.video.volume = e.currentTarget.value
+      this.video.muted = e.currentTarget.value === 0
+      if (this.video.muted || this.video.volume === 0) {
+        this.volumeLevel = 'muted'
+      } else if (this.video.volume >= 0.5) {
+        this.volumeLevel = 'high'
+      } else {
+        this.volumeLevel = 'low'
+      }
+
+      this.video.dataset.volumeLevel = this.volumeLevel
     },
     handleVolumeChange() {},
 
@@ -167,7 +234,6 @@ export default {
 
     handleVideoScreenChange(event) {
       const current = event.currentTarget.id
-
       if (current === 'mini') {
         // eslint-disable-next-line no-unused-expressions
         if (this.screenMode === 'normal') {
@@ -180,6 +246,26 @@ export default {
           this.video.requestPictureInPicture()
         } else {
           document.exitPictureInPicture()
+        }
+      }
+      if (current === 'theater') {
+        if (this.screenMode === 'normal') {
+          this.screenMode = 'theater'
+        } else {
+          this.screenMode = 'normal'
+        }
+      }
+
+      if (current === 'full') {
+        if (this.screenMode === 'normal') {
+          this.screenMode = 'full'
+        } else {
+          this.screenMode = 'normal'
+        }
+        if (this.screenMode === 'full') {
+          this.video.requestFullscreen()
+        } else {
+          document.exitFullscreen()
         }
       }
     },
@@ -308,23 +394,14 @@ video {
   display: none;
 }
 
-.video-container[data-volume-level='high'] .volume-high-icon {
-  display: block;
-}
-
-.video-container[data-volume-level='low'] .volume-low-icon {
-  display: block;
-}
-
-.video-container[data-volume-level='muted'] .volume-muted-icon {
-  display: block;
-}
-
 .volume-container {
   display: flex;
   align-items: center;
 }
 
+.show {
+  display: block;
+}
 .volume-slider {
   width: 0;
   transform-origin: left;
