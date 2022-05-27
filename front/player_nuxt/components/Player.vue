@@ -5,14 +5,15 @@
       { captions: isHidden },
       { paused: !isPlaying },
       { theater: screenMode === 'theater' },
+      { scrubbing: isScrubbing },
     ]"
     data-volume-level="high"
   >
-    <img class="thumbnail-img" />
+    <img ref="thumbnailImg" class="thumbnail-img" />
     <div class="video-controls-container">
-      <div class="timeline-container">
+      <div ref="timeline" class="timeline-container">
         <div class="timeline">
-          <img class="preview-img" />
+          <img ref="previewImg" class="preview-img" />
           <div class="thumb-indicator"></div>
         </div>
       </div>
@@ -70,9 +71,9 @@
           />
         </div>
         <div class="duration-container">
-          <div class="current-time">0:00</div>
+          <div ref="currentTime" class="current-time">0:00</div>
           /
-          <div class="total-time"></div>
+          <div ref="totalTime" class="total-time"></div>
         </div>
         <button class="captions-btn" @click="handleCaptionChange">
           <svg viewBox="0 0 24 24">
@@ -145,6 +146,23 @@
 <script>
 // import Vue from 'vue'
 
+const leadingZeroFormatter = new Intl.NumberFormat(undefined, {
+  minimumIntegerDigits: 2,
+})
+
+function formatDuration(time) {
+  const seconds = Math.floor(time % 60)
+  const minutes = Math.floor(time / 60) % 60
+  const hours = Math.floor(time / 3600)
+  if (hours === 0) {
+    return `${minutes}:${leadingZeroFormatter.format(seconds)}`
+  } else {
+    return `${hours}:${leadingZeroFormatter.format(
+      minutes
+    )}:${leadingZeroFormatter.format(seconds)}`
+  }
+}
+
 export default {
   name: 'NuxtPlayer',
 
@@ -152,10 +170,17 @@ export default {
     return {
       speed: '1x',
       video: null,
+      timeline: null,
+      previewImg: null,
+      thumbnailImg: null,
+      totalTime: 0,
+      currentTime: 0,
       volume: null,
       captions: null,
       isHidden: false,
       isPlaying: false,
+      isScrubbing: false,
+      wasPaused: null,
       volumeLevel: 'high', // high , muted, low
       screenMode: 'normal', // 'normal' , 'mini' , 'theater', 'full'
     }
@@ -163,15 +188,123 @@ export default {
 
   mounted() {
     //  vue data
+    this.totalTime = this.$refs.totalTime
+    this.currentTime = this.$refs.currentTime
     this.volume = this.$refs.volume
     this.video = this.$refs.video
+    this.timeline = this.$refs.timeline
+    this.previewImg = this.$refs.previewImg
+    this.thumbnailImg = this.$refs.thumbnailImg
     this.captions = this.video.textTracks[0]
-
     // data handle
     this.captions.mode = 'hidden'
+
+    // event
+    this.video.addEventListener('play', () => {
+      this.isPlaying = true
+    })
+    this.video.addEventListener('pause', () => {
+      this.isPlaying = false
+    })
+    this.video.addEventListener('loadeddata', this.setTotal)
+    this.video.addEventListener('timeupdate', this.setTimeUpdate)
+    this.timeline.addEventListener('mousemove', this.handleTimelineUpdate)
+    this.timeline.addEventListener('mousedown', this.toggleScrubbing)
+    document.addEventListener('mouseup', (e) => {
+      if (this.isScrubbing) this.toggleScrubbing(e)
+    })
+    document.addEventListener('mousemove', (e) => {
+      if (this.isScrubbing) this.handleTimelineUpdate(e)
+    })
+
+    document.addEventListener('keydown', (e) => {
+      const tagName = document.activeElement.tagName.toLowerCase()
+
+      if (tagName === 'input') return
+
+      switch (e.key.toLowerCase()) {
+        case ' ':
+          if (tagName === 'button') break
+          break
+        case 'k':
+          this.handleVideoPlay()
+          break
+        case 'f':
+          this.handleVideoScreenChange(e, 'full')
+          break
+        case 't':
+          this.handleVideoScreenChange(e, 'theater')
+          break
+        case 'i':
+          this.handleVideoScreenChange(e, 'mini')
+          break
+        case 'm':
+          this.handleVolumeMute()
+          break
+        case 'arrowleft':
+        case 'j':
+          this.skip(-5)
+          break
+        case 'arrowright':
+        case 'l':
+          this.skip(5)
+          break
+        case 'c':
+          this.handleCaptionChange()
+          break
+      }
+    })
+  },
+  beforeDestroy() {
+    this.video.removeEventListener('loadeddata', this.setTotal)
+    this.video.removeEventListener('timeupdate', this.setTimeUpdate)
   },
 
   methods: {
+    skip(duration) {
+      this.video.currentTime += duration
+    },
+    setTimeUpdate() {
+      this.currentTime.textContent = formatDuration(this.video.currentTime)
+      const percent = this.video.currentTime / this.video.duration
+      this.timeline.style.setProperty('--progress-position', percent)
+    },
+    setTotal() {
+      this.totalTime.textContent = formatDuration(this.video.duration)
+    },
+    toggleScrubbing(e) {
+      const rect = this.timeline.getBoundingClientRect()
+      const percent =
+        Math.min(Math.max(0, e.x - rect.x), rect.width) / rect.width
+      this.isScrubbing = (e.buttons & 1) === 1
+      if (this.isScrubbing) {
+        this.wasPaused = this.video.paused
+        this.video.pause()
+      } else {
+        this.video.currentTime = percent * this.video.duration
+        if (!this.wasPaused) this.video.play()
+      }
+
+      this.handleTimelineUpdate(e)
+    },
+    handleTimelineUpdate(e) {
+      const rect = this.timeline.getBoundingClientRect()
+      const percent =
+        Math.min(Math.max(0, e.x - rect.x), rect.width) / rect.width
+      const previewImgNumber = Math.max(
+        1,
+        Math.floor((percent * this.video.duration) / 10)
+      )
+      const previewImgSrc = require(`@/assets/previewImgs/preview${previewImgNumber}.jpg`)
+      this.previewImg.src = previewImgSrc
+      this.timeline.style.setProperty('--preview-position', percent)
+
+      if (this.isScrubbing) {
+        e.preventDefault()
+        this.thumbnailImg.src = previewImgSrc
+        this.timeline.style.setProperty('--progress-position', percent)
+      }
+    },
     handleSpeedChange() {
       let newPlaybackRate = this.$refs.video.playbackRate + 0.25
       if (newPlaybackRate > 2) newPlaybackRate = 0.25
@@ -232,9 +365,9 @@ export default {
       this.isPlaying ? this.video.play() : this.video.pause()
     },
 
-    handleVideoScreenChange(event) {
+    handleVideoScreenChange(event, key) {
       const current = event.currentTarget.id
-      if (current === 'mini') {
+      if (current === 'mini' || key === 'mini') {
         // eslint-disable-next-line no-unused-expressions
         if (this.screenMode === 'normal') {
           this.screenMode = 'mini'
@@ -248,7 +381,7 @@ export default {
           document.exitPictureInPicture()
         }
       }
-      if (current === 'theater') {
+      if (current === 'theater' || key === 'theater') {
         if (this.screenMode === 'normal') {
           this.screenMode = 'theater'
         } else {
@@ -256,7 +389,7 @@ export default {
         }
       }
 
-      if (current === 'full') {
+      if (current === 'full' || key === 'full') {
         if (this.screenMode === 'normal') {
           this.screenMode = 'full'
         } else {
